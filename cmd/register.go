@@ -74,7 +74,7 @@ func runRegister(cmd *cobra.Command, args []string) {
 	}
 	log.Infof("Client connected and started!")
 
-	vinCh := make(chan string)
+	vinCh := make(chan string, 1)
 
 	go func() {
 		for {
@@ -91,7 +91,11 @@ func runRegister(cmd *cobra.Command, args []string) {
 						break
 					}
 					if reg, ok := msg.Reg.(*protocol.RegisterVIN); ok {
-						vinCh <- reg.VIN
+						// Only the first VIN is needed; never block acking on it.
+						select {
+						case vinCh <- reg.VIN:
+						default:
+						}
 					}
 					if err := cl.SendMessage(&protocol.PhevMessage{
 						Type:     protocol.CmdOutSend,

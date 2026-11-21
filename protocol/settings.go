@@ -4,12 +4,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"sync"
 	//        log "github.com/sirupsen/logrus"
 )
 
 // Vehicle settings are sent to the client in register 0x16.
 // The client sends updated settings to the vehicle via register 0x0f.
 type Settings struct {
+	mu       sync.Mutex
 	settings []uint64
 }
 
@@ -25,6 +27,8 @@ func (s *Settings) FromRegister(reg []byte) error {
 		return fmt.Errorf("register must end with 0x0, is 0x%x", reg[7])
 	}
 	value := binary.LittleEndian.Uint64(reg)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, v := range s.settings {
 		if value == v {
 			return nil
@@ -35,14 +39,20 @@ func (s *Settings) FromRegister(reg []byte) error {
 }
 
 func (s *Settings) Clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.settings = []uint64{}
 }
 
 func (s *Settings) NewSender() *SettingsSender {
-	return &SettingsSender{settings: s.settings}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return &SettingsSender{settings: append([]uint64(nil), s.settings...)}
 }
 
 func (s *Settings) Dump() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ret := []string{}
 	for _, v := range s.settings {
 		ret = append(ret, fmt.Sprintf("%016x", v))
