@@ -88,16 +88,45 @@ type Client struct {
 
 	address string
 	conn    net.Conn
+	rxMu    sync.Mutex
 	lastRx  time.Time
 	started chan struct{}
 
 	key *protocol.SecurityKey
 
-	// Keep track of the model year so we can use the correct registers
-	ModelYear ModelYear
+	// Keep track of the model year so we can use the correct registers.
+	// Access via ModelYear(), as it is set by the manage goroutine.
+	myMu      sync.RWMutex
+	modelYear ModelYear
 
 	done      chan struct{}
 	closeOnce sync.Once
+}
+
+// ModelYear returns the detected model year, or ModelYearUnknown if the car
+// has not yet sent its start request.
+func (c *Client) ModelYear() ModelYear {
+	c.myMu.RLock()
+	defer c.myMu.RUnlock()
+	return c.modelYear
+}
+
+func (c *Client) setModelYear(y ModelYear) {
+	c.myMu.Lock()
+	defer c.myMu.Unlock()
+	c.modelYear = y
+}
+
+func (c *Client) setLastRx(t time.Time) {
+	c.rxMu.Lock()
+	defer c.rxMu.Unlock()
+	c.lastRx = t
+}
+
+func (c *Client) getLastRx() time.Time {
+	c.rxMu.Lock()
+	defer c.rxMu.Unlock()
+	return c.lastRx
 }
 
 // isClosed reports whether Close has been called.
@@ -130,7 +159,7 @@ func New(opts ...Option) (*Client, error) {
 		listeners: []*Listener{},
 		address:   DefaultAddress,
 		key:       &protocol.SecurityKey{},
-		ModelYear: ModelYearUnknown,
+		modelYear: ModelYearUnknown,
 		done:      make(chan struct{}),
 	}
 	for _, o := range opts {
@@ -290,7 +319,7 @@ func (c *Client) pinger() {
 		switch {
 		case c.isClosed():
 			return
-		case t.Sub(c.lastRx) < 500*time.Millisecond:
+		case t.Sub(c.getLastRx()) < 500*time.Millisecond:
 			continue
 		}
 		if err := c.SendMessage(protocol.NewPingRequestMessage(pingSeq)); err != nil {
@@ -320,7 +349,7 @@ func (c *Client) manage() {
 				return
 			}
 		case protocol.CmdInMy24StartReq:
-			c.ModelYear = ModelYear24
+			c.setModelYear(ModelYear24)
 			if err := c.SendMessage(&protocol.PhevMessage{
 				Type:     protocol.CmdOutMy24StartResp,
 				Register: 0x1,
@@ -333,7 +362,7 @@ func (c *Client) manage() {
 			log.Debug("%%PHEV_START24_RECV%%")
 			c.started <- struct{}{}
 		case protocol.CmdInMy18StartReq:
-			c.ModelYear = ModelYear18
+			c.setModelYear(ModelYear18)
 			if err := c.SendMessage(&protocol.PhevMessage{
 				Type:     protocol.CmdOutMy18StartResp,
 				Register: 0x1,
@@ -346,7 +375,7 @@ func (c *Client) manage() {
 			log.Debug("%%PHEV_START18_RECV%%")
 			c.started <- struct{}{}
 		case protocol.CmdInMy14StartReq:
-			c.ModelYear = ModelYear14
+			c.setModelYear(ModelYear14)
 			if err := c.SendMessage(&protocol.PhevMessage{
 				Type:     protocol.CmdOutMy14StartResp,
 				Register: 0x1,
@@ -384,7 +413,7 @@ func (c *Client) reader() {
 			log.Debug("%PHEV_TCP_READER_CLOSE%")
 			return
 		}
-		c.lastRx = time.Now()
+		c.setLastRx(time.Now())
 		log.Tracef("%%PHEV_TCP_RECV_DATA%%: %s", hex.EncodeToString(data[:n]))
 		messages := protocol.NewFromBytes(data[:n], c.key)
 		for _, m := range messages {
