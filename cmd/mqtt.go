@@ -137,9 +137,11 @@ type mqttClient struct {
 	mqttData       map[string]string
 	updateInterval time.Duration
 
-	phev        *client.Client
-	lastConnect time.Time
-	lastError   error
+	phev         *client.Client
+	lastConnect  time.Time
+	lastError    error
+	lastVIN      string
+	carConnected bool
 
 	prefix string
 
@@ -176,6 +178,33 @@ func (m *mqttClient) Run(cmd *cobra.Command, args []string) error {
 	m.haPublishedDiscovery	= false
 	m.lastError		= nil
 
+	if mqttDisableSet {
+		log.Info("Setting vechicle registers via MQTT is disabled")
+	}
+	m.mqttData = map[string]string{}
+
+	// Subscriptions and retained state must be re-established on every
+	// (re)connection - a broker restart silently drops both.
+	onConnect := func(mqtt_client mqtt.Client) {
+		log.Info("Connected to MQTT broker")
+		topics := []string{m.topic("/connection"), m.topic("/settings/#"), m.haDiscoveryPrefix + "/status"}
+		if !mqttDisableSet {
+			topics = append(topics, m.topic("/set/#"))
+		}
+		for _, t := range topics {
+			if token := mqtt_client.Subscribe(t, 0, nil); token.Wait() && token.Error() != nil {
+				log.Errorf("Error subscribing to %s: %v", t, token.Error())
+			}
+		}
+		availability := "offline"
+		if m.carConnected {
+			availability = "online"
+		}
+		mqtt_client.Publish(m.topic("/available"), 0, true, availability)
+		m.haPublishedDiscovery = false
+		m.republishDiscovery()
+	}
+
 	m.options = mqtt.NewClientOptions().
 		AddBroker(mqttServer).
 		SetClientID("phev2mqtt").
@@ -183,28 +212,13 @@ func (m *mqttClient) Run(cmd *cobra.Command, args []string) error {
 		SetPassword(mqttPassword).
 		SetAutoReconnect(true).
 		SetDefaultPublishHandler(m.handleIncomingMqtt).
+		SetOnConnectHandler(onConnect).
 		SetWill(m.topic("/available"), "offline", 0, true)
 
 	m.client = mqtt.NewClient(m.options)
 	if token := m.client.Connect(); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
-
-	if !mqttDisableSet {
-		if token := m.client.Subscribe(m.topic("/set/#"), 0, nil); token.Wait() && token.Error() != nil {
-			return token.Error()
-		}
-	} else {
-		log.Info("Setting vechicle registers via MQTT is disabled")
-	}
-	if token := m.client.Subscribe(m.topic("/connection"), 0, nil); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-	if token := m.client.Subscribe(m.topic("/settings/#"), 0, nil); token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
-
-	m.mqttData = map[string]string{}
 
 	for {
 		if m.enabled {
@@ -231,6 +245,14 @@ func (m *mqttClient) Run(cmd *cobra.Command, args []string) error {
 	}
 }
 
+// Republish Home Assistant discovery, if the VIN is already known.
+func (m *mqttClient) republishDiscovery() {
+	if m.lastVIN == "" {
+		return
+	}
+	m.publishHomeAssistantDiscovery(m.lastVIN, m.prefix, "Phev")
+}
+
 func (m *mqttClient) publish(topic, payload string) {
 //	if cache := m.mqttData[topic]; cache != payload {
 		m.client.Publish(m.topic(topic), 0, false, payload)
@@ -242,7 +264,17 @@ func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Messag
 	log.Infof("Topic: [%s] Payload: [%s]", msg.Topic(), msg.Payload())
 
 	topicParts := strings.Split(msg.Topic(), "/")
-	if strings.HasPrefix(msg.Topic(), m.topic("/set/register/")) {
+	if msg.Topic() == m.haDiscoveryPrefix+"/status" {
+		// Home Assistant birth message - it has restarted, so needs
+		// the discovery configs and availability republished.
+		if strings.ToLower(string(msg.Payload())) == "online" {
+			m.haPublishedDiscovery = false
+			m.republishDiscovery()
+			if m.carConnected {
+				m.client.Publish(m.topic("/available"), 0, true, "online")
+			}
+		}
+	} else if strings.HasPrefix(msg.Topic(), m.topic("/set/register/")) {
 		if len(topicParts) != 4 {
 			log.Infof("Bad topic format [%s]", msg.Topic())
 			return
@@ -313,7 +345,7 @@ func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Messag
 		payload := strings.ToLower(string(msg.Payload()))
 
 		modeMap := map[string]byte{"off": 0x0, "OFF": 0x0, "cool": 0x1, "heat": 0x2, "windscreen": 0x3, "mode": 0x4}
-		durMap := map[string]byte{"10": 0x0, "20": 0x1, "30": 0x2, "on": 0x0, "off": 0x0}
+		durMap := map[string]byte{"10": 0x0, "20": 0x1, "30": 0x2, "on": 0x2, "off": 0x0}
 		parts := strings.Split(topic, "/")
 		mode, ok := modeMap[parts[len(parts)-1]]
 		if !ok {
@@ -338,7 +370,8 @@ func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Messag
 			registerPayload := bytes.Repeat([]byte{0xff}, 15)
 			registerPayload[0] = 0x0
 			registerPayload[1] = 0x0
-			registerPayload[6] = mode | duration
+			// MY14 encodes the duration in the high nibble (10min=0x00, 20min=0x10, 30min=0x20).
+			registerPayload[6] = mode | (duration << 4)
 			if err := m.phev.SetRegister(protocol.SetACModeRegisterMY14, registerPayload); err != nil {
 				log.Infof("Error setting AC mode: %v", err)
 				return
@@ -383,15 +416,20 @@ func (m *mqttClient) handlePhev(cmd *cobra.Command) error {
 	if err := m.phev.Connect(); err != nil {
 		return err
 	}
+	// A connection that outlives this attempt keeps pinging the car and
+	// occupies its single client slot, blocking all future reconnects.
+	defer m.phev.Close()
 
 	if err := m.phev.Start(); err != nil {
 		return err
 	}
+	m.carConnected = true
 	m.client.Publish(m.topic("/available"), 0, true, "online")
 
 	m.lastError = nil
 
 	defer func() {
+		m.carConnected = false
 		m.lastConnect = time.Now()
 	}()
 
@@ -415,7 +453,6 @@ func (m *mqttClient) handlePhev(cmd *cobra.Command) error {
 					encodingErrorCount = 0
 				}
 				if encodingErrorCount > 50 {
-					m.phev.Close()
 					updaterTicker.Stop()
 					return fmt.Errorf("Disconnecting due to too many errors")
 				}
@@ -426,12 +463,15 @@ func (m *mqttClient) handlePhev(cmd *cobra.Command) error {
 					break
 				}
 				m.publishRegister(msg)
-				m.phev.Send <- &protocol.PhevMessage{
+				if err := m.phev.SendMessage(&protocol.PhevMessage{
 					Type:     protocol.CmdOutSend,
 					Register: msg.Register,
 					Ack:      protocol.Ack,
 					Xor:      msg.Xor,
 					Data:     []byte{0x0},
+				}); err != nil {
+					updaterTicker.Stop()
+					return err
 				}
 			}
 		}
@@ -452,6 +492,7 @@ func (m *mqttClient) publishRegister(msg *protocol.PhevMessage) {
 	m.publish(fmt.Sprintf("/register/%02x", msg.Register), dataStr)
 	switch reg := msg.Reg.(type) {
 	case *protocol.RegisterVIN:
+		m.lastVIN = reg.VIN
 		m.publish("/vin", reg.VIN)
 		m.publishHomeAssistantDiscovery(reg.VIN, m.prefix, "Phev")
 		m.publish("/registrations", fmt.Sprintf("%d", reg.Registrations))
