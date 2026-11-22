@@ -193,8 +193,8 @@ sudo scripts/setup-car-wifi-nm.sh REMOTE45bhds 'blahblahbla12314' ee:4d:ec:de:7a
 ```
 
 The last argument is the MAC address the car was registered with. The script
-configures plain WPA2-PSK, a hidden SSID, a fixed MAC, and unlimited autoconnect
-retries. Without these NetworkManager can get stuck: the car's old access point
+configures plain WPA2-PSK, a hidden SSID on 2.4 GHz, Wifi power saving off, a fixed
+MAC, and unlimited autoconnect retries. (Tested on Debian 13 "trixie".) Without these NetworkManager can get stuck: the car's old access point
 may reject NetworkManager's default security offer (`ASSOC-REJECT status_code=16`),
 and after a few failures NetworkManager stops auto-connecting for good (so the Pi
 doesn't reconnect when the car returns).

@@ -11,7 +11,8 @@
 #  * plain WPA2-PSK only (the car advertises RSN/CCMP/PSK, nothing else);
 #    NetworkManager's default offer of SAE/FT/PMF can get rejected
 #    (ASSOC-REJECT status_code=16).
-#  * hidden SSID (scan_ssid)
+#  * hidden SSID (scan_ssid), 2.4 GHz only (faster discovery), Wifi
+#    power saving off
 #  * fixed MAC address, no randomisation, also while scanning
 #  * unlimited autoconnect retries, otherwise NetworkManager gives up for good
 #    after a few failures while the car is away.
@@ -35,6 +36,8 @@ nmcli connection delete "$SSID" >/dev/null 2>&1 || true
 
 nmcli connection add type wifi ifname "$IFNAME" con-name "$SSID" ssid "$SSID" \
 	802-11-wireless.hidden yes \
+	802-11-wireless.band bg \
+	802-11-wireless.powersave 2 \
 	802-11-wireless.cloned-mac-address "$MAC" \
 	802-11-wireless-security.key-mgmt wpa-psk \
 	802-11-wireless-security.psk "$PSK" \
