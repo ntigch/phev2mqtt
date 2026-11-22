@@ -2,12 +2,13 @@
 
 Utility to interact with a Mitsubishi Outlander PHEV via the Wifi remote
 control protocol.
+Forked from https://github.com/Will-Honor/phev2mqtt who got it from https://github.com/buxtronix/phev2mqtt
 
 Inspired by https://github.com/phev-remote/ but written entirely in Go.
 
 For further hacking, read the [protocol documentation](protocol/README.md).
 
-Tested against a MY18 vehicle.
+Tested against a MY18 vehicle and my own MY20.
 
 ![Home Assistant Screenshot](phev-ha.png)
 
@@ -19,7 +20,7 @@ Tested against a MY18 vehicle.
  * Fetch battery, charge, door, light status
  * Set lights and charge enable
  * Near-instant response to commands
- * *Only tested on a MY18 Phev*
+ * *tested on MY18 & MY20*
 
 Also includes some debugging utilities, and a vehicle emulator.
 
@@ -29,7 +30,7 @@ Also includes some debugging utilities, and a vehicle emulator.
 
 ## Licence, etc
 
-Licenced under the GPLv2.
+Licenced under the GPLv2 by the original developer:
 
 Copyright 2021 Ben Buxton <bbuxton@gmail.com>
 
