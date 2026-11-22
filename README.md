@@ -182,6 +182,33 @@ network={
 
 ```
 
+##### NetworkManager (Raspberry Pi OS Bookworm and newer)
+
+Newer Raspberry Pi OS releases manage Wifi with NetworkManager, so the
+`.link` file and `wpa_supplicant.conf` steps above do not apply (and
+`wpa_supplicant.conf` must not be used at the same time). Instead:
+
+```
+sudo scripts/setup-car-wifi-nm.sh REMOTE45bhds 'blahblahbla12314' ee:4d:ec:de:7a:91
+```
+
+The last argument is the MAC address the car was registered with. The script
+configures plain WPA2-PSK, a hidden SSID on 2.4 GHz, Wifi power saving off, a fixed
+MAC, and unlimited autoconnect retries. (Tested on Debian 13 "trixie".) Without these NetworkManager can get stuck: the car's old access point
+may reject NetworkManager's default security offer (`ASSOC-REJECT status_code=16`),
+and after a few failures NetworkManager stops auto-connecting for good (so the Pi
+doesn't reconnect when the car returns).
+
+As a safety net, also make `phev2mqtt` re-activate the connection if the car
+hasn't been seen for a while. Use this `ExecStart` in the service below (the
+service user needs passwordless `sudo` for `nmcli`):
+
+```
+ExecStart=/usr/local/bin/phev2mqtt --config=/dev/null client mqtt --mqtt_server tcp://192.168.0.88:1883 --wifi_restart_time=2m --wifi_restart_retry_time=1m --wifi_restart_command="sudo nmcli device disconnect wlan0; sleep 2; sudo nmcli connection up REMOTE45bhds" -v=debug
+```
+
+Activating the connection again also clears NetworkManager's autoconnect block.
+
 - Add the following to `/etc/systemd/system/phev2mqtt.service`, updating the MQTT address to
 suit your setup:
 
