@@ -19,10 +19,10 @@ package cmd
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/ntigch/phev2mqtt/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +42,8 @@ e.g:
 0b:02 will set register 0b to the value 02
 
 `,
-	Run: runSet,
+	SilenceUsage: true,
+	RunE:         runSet,
 }
 
 type regValue struct {
@@ -50,51 +51,40 @@ type regValue struct {
 	value    []byte
 }
 
-func runSet(cmd *cobra.Command, args []string) {
-	var register, value []byte
-	var err error
-
+func runSet(cmd *cobra.Command, args []string) error {
 	setRegisters := []*regValue{}
-
 	for _, arg := range args {
-		if vals := strings.Split(arg, ":"); len(vals) == 2 {
-			register, err = hex.DecodeString(vals[0])
-			if err != nil {
-				panic(err)
-			}
-			value, err = hex.DecodeString(vals[1])
-			if err != nil {
-				panic(err)
-			}
-			setRegisters = append(setRegisters, &regValue{
-				register: register[0], value: value,
-			})
+		vals := strings.Split(arg, ":")
+		if len(vals) != 2 {
+			return fmt.Errorf("bad argument %q, want <register>:<value>", arg)
 		}
+		register, err := hex.DecodeString(vals[0])
+		if err != nil || len(register) != 1 {
+			return fmt.Errorf("bad register in %q, want one hex byte", arg)
+		}
+		value, err := hex.DecodeString(vals[1])
+		if err != nil {
+			return fmt.Errorf("bad value in %q: %v", arg, err)
+		}
+		setRegisters = append(setRegisters, &regValue{
+			register: register[0], value: value,
+		})
 	}
 
 	waitTime, err := cmd.Flags().GetDuration("wait_duration")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	sendInterval, err := cmd.Flags().GetDuration("send_interval")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	address, _ := cmd.Flags().GetString("address")
-	cl, err := client.New(client.AddressOption(address))
+	cl, err := connectClient(cmd)
 	if err != nil {
-		panic(err)
+		return err
 	}
-
-	if err := cl.Connect(); err != nil {
-		panic(err)
-	}
-
-	if err := cl.Start(); err != nil {
-		panic(err)
-	}
-	log.Infof("Client connected and started!")
+	defer cl.Close()
 	log.Infof("Waiting %s", waitTime.String())
 
 	time.Sleep(waitTime)
@@ -102,25 +92,16 @@ func runSet(cmd *cobra.Command, args []string) {
 	for _, reg := range setRegisters {
 		log.Infof("Setting register 0x%x to 0x%s", reg.register, hex.EncodeToString(reg.value))
 		if err := cl.SetRegister(reg.register, reg.value); err != nil {
-			panic(err)
+			return err
 		}
 		time.Sleep(sendInterval)
 	}
-
+	return nil
 }
 
 func init() {
 	clientCmd.AddCommand(setCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// registerCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// registerCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	setCmd.Flags().Duration("wait_duration", 10*time.Second, "How long to wait after connecting to car before sending register update")
 	setCmd.Flags().Duration("send_interval", 1*time.Second, "Interval between setting each register")
 }

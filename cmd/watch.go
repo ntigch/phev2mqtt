@@ -19,9 +19,7 @@ package cmd
 
 import (
 	"encoding/hex"
-	"time"
 
-	"github.com/ntigch/phev2mqtt/client"
 	"github.com/ntigch/phev2mqtt/protocol"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,23 +31,16 @@ var watchCmd = &cobra.Command{
 	Short: "Connect to Phev and watch incoming updates",
 	Long: `Connects to the Phev and watches for incoming register
 updates, displaying them in real-time.`,
-	Run: Run,
+	SilenceUsage: true,
+	RunE:         runWatch,
 }
 
-func Run(cmd *cobra.Command, args []string) {
-	address, _ := cmd.Flags().GetString("address")
-	cl, err := client.New(client.AddressOption(address))
+func runWatch(cmd *cobra.Command, args []string) error {
+	cl, err := connectClient(cmd)
 	if err != nil {
-		panic(err)
+		return err
 	}
-
-	if err := cl.Connect(); err != nil {
-		panic(err)
-	}
-
-	if err := cl.Start(); err != nil {
-		panic(err)
-	}
+	defer cl.Close()
 
 	var registers = map[byte]string{}
 
@@ -58,7 +49,7 @@ func Run(cmd *cobra.Command, args []string) {
 		case m, ok := <-cl.Recv:
 			if !ok {
 				log.Infof("Connection closed.")
-				return
+				return nil
 			}
 			switch m.Type {
 			case protocol.CmdInResp:
@@ -78,7 +69,7 @@ func Run(cmd *cobra.Command, args []string) {
 					Data:     []byte{0x0},
 				}); err != nil {
 					log.Infof("Connection closed.")
-					return
+					return nil
 				}
 			}
 		}
@@ -87,15 +78,4 @@ func Run(cmd *cobra.Command, args []string) {
 
 func init() {
 	clientCmd.AddCommand(watchCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// watchCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// watchCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	watchCmd.Flags().DurationP("wait", "w", 60*time.Second, "How long to hold connection open for")
 }
