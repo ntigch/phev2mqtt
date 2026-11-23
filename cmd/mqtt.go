@@ -19,8 +19,8 @@ package cmd
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/buxtronix/phev2mqtt/client"
-	"github.com/buxtronix/phev2mqtt/protocol"
+	"github.com/ntigch/phev2mqtt/client"
+	"github.com/ntigch/phev2mqtt/protocol"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"os/exec"

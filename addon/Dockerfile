@@ -8,7 +8,10 @@ RUN apk update && apk add --no-cache \
 	libpcap-dev
 
 WORKDIR /tmp
-RUN git clone https://github.com/buxtronix/phev2mqtt.git
+# Build this fork; pin PHEV2MQTT_REF to a tag or commit for reproducible builds
+ARG PHEV2MQTT_REF=main
+RUN git clone https://github.com/ntigch/phev2mqtt.git && \
+    git -C phev2mqtt checkout ${PHEV2MQTT_REF}
 COPY --from=golang:alpine /usr/local/go/ /usr/local/go/
 RUN cd /tmp/phev2mqtt && \
     /usr/local/go/bin/go build

@@ -30,7 +30,7 @@ Also includes some debugging utilities, and a vehicle emulator.
 
 ## Licence, etc
 
-Licenced under the GPLv2 by the original developer:
+Licenced under the GPLv3 (or later) by the original developer:
 
 Copyright 2021 Ben Buxton <bbuxton@gmail.com>
 

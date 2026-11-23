@@ -18,7 +18,7 @@ package cmd
 
 import (
 	"encoding/hex"
-	"github.com/buxtronix/phev2mqtt/protocol"
+	"github.com/ntigch/phev2mqtt/protocol"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

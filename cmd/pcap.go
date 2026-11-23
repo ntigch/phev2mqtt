@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buxtronix/phev2mqtt/protocol"
+	"github.com/ntigch/phev2mqtt/protocol"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"

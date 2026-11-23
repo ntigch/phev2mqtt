@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 	Use:   "phev2mqtt",
 	Short: "A utility for communicating with a Mitsubishi PHEV",
 	Long: `See below for subcommands. For further information
-	on this tool, see https://github.com/buxtronix/phev2mqtt.`,
+	on this tool, see https://github.com/ntigch/phev2mqtt (forked from https://github.com/buxtronix/phev2mqtt).`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		level, err := log.ParseLevel(logLevel)
 		if err != nil {

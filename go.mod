@@ -1,4 +1,4 @@
-module github.com/buxtronix/phev2mqtt
+module github.com/ntigch/phev2mqtt
 
 go 1.16
 

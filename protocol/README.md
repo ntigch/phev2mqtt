@@ -72,7 +72,7 @@ Packets from the car will be encoded using a rolling code scheme, and packets
 from the client to the car are expected to be encoded similarly.
 
 The algorithm was reverse engineered by @zivillian in
-[this issue](https://github.com/buxtronix/phev2mqtt/issues/16) which
+[this upstream issue](https://github.com/buxtronix/phev2mqtt/issues/16) which
 contains more detailed notes.
 
 1. Initial security key

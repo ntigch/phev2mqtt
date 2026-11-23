@@ -19,7 +19,7 @@ package cmd
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/buxtronix/phev2mqtt/emulator"
+	"github.com/ntigch/phev2mqtt/emulator"
 	"github.com/spf13/cobra"
 	"strings"
 
