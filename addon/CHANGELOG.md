@@ -1,3 +1,8 @@
+# Version 1.5
+* Add-on now builds from the ntigch/phev2mqtt fork instead of buxtronix/phev2mqtt (optionally pin with the PHEV2MQTT_REF build arg)
+* Updated all Go dependencies (paho.mqtt, logrus, cobra, viper, x/*); requires Go 1.24+ to build
+* Added CI with a dependency/vulnerability check (govulncheck) and Dependabot
+
 # Version 1.4
 * Changed "startup": "before" to "startup": "application" as "before" no longer supported and it should really start after Home Assistant
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buxtronix/phev2mqtt/protocol"
+	"github.com/ntigch/phev2mqtt/protocol"
 )
 
 // startTestServer returns a listener emulating the car's TCP endpoint,

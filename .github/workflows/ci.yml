@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Weekly, so newly published advisories are caught even without commits
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      - run: go build ./...
+      - run: go test ./...
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Latest Go: the stdlib patch level matters for govulncheck, while
+          # build-test above verifies the minimum version in go.mod still builds.
+          go-version: stable
+      - run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      - name: go.mod / go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+      - name: Verify module checksums
+        run: go mod verify
+      - name: Scan for known vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
