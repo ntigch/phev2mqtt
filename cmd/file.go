@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"encoding/hex"
+	"fmt"
 	"os"
 	"strings"
 
@@ -36,42 +37,28 @@ var fileCmd = &cobra.Command{
 	Long: `
 Decode raw hex string messages from the provided filename.
 `,
-	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		f, err := os.Open(args[0])
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		inData, err := os.ReadFile(args[0])
 		if err != nil {
-			panic(err)
+			return err
 		}
-		defer f.Close()
-
-		inData := make([]byte, 100000)
-		n, err := f.Read(inData)
-		if err != nil {
-			panic(err)
-		}
-		dat := strings.Replace(string(inData[:n]), "\n", "", -1)
+		// Ignore line breaks and other whitespace between hex digits.
+		dat := strings.Join(strings.Fields(string(inData)), "")
 		binData, err := hex.DecodeString(dat)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("%s: %w", args[0], err)
 		}
 		securityKey = &protocol.SecurityKey{}
 		for _, msg := range protocol.NewFromBytes(binData, securityKey) {
 			log.Debug(hex.EncodeToString(msg.Original))
 			log.Infof("%s", msg.ShortForm())
 		}
+		return nil
 	},
 }
 
 func init() {
 	decodeCmd.AddCommand(fileCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// fileCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// fileCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

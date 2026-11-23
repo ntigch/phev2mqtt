@@ -39,10 +39,12 @@ var rootCmd = &cobra.Command{
 	Short: "A utility for communicating with a Mitsubishi PHEV",
 	Long: `See below for subcommands. For further information
 	on this tool, see https://github.com/ntigch/phev2mqtt (forked from https://github.com/buxtronix/phev2mqtt).`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	// Execute reports errors via cobra.CheckErr; don't print them twice.
+	SilenceErrors: true,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		level, err := log.ParseLevel(logLevel)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		log.SetLevel(level)
 		if logSyslog {
@@ -59,11 +61,8 @@ var rootCmd = &cobra.Command{
 				DisableTimestamp: true,
 			})
 		}
+		return nil
 	},
-
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -75,18 +74,10 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.phev2mqtt.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "verbosity", "v", "info", "logging level to use")
 	rootCmd.PersistentFlags().BoolVarP(&logTimes, "log_timestamps", "t", false, "coloured logging with timestamps")
 	rootCmd.PersistentFlags().BoolVarP(&logSyslog, "log_syslog", "s", false, "plain logging to syslog instead of console")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -18,6 +18,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"github.com/ntigch/phev2mqtt/client"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -38,15 +40,26 @@ Requires Wifi reachability to the vehicle.`,
 func init() {
 	rootCmd.AddCommand(clientCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// clientCmd.PersistentFlags().String("foo", "", "A help for foo")
 	clientCmd.PersistentFlags().String("address", "192.168.8.46:8080", "Address to connect to")
 
 	viper.BindPFlag("address", clientCmd.PersistentFlags().Lookup("address"))
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// clientCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+// connectClient connects to the car at the --address flag and waits for it
+// to start the session.
+func connectClient(cmd *cobra.Command) (*client.Client, error) {
+	address, _ := cmd.Flags().GetString("address")
+	cl, err := client.New(client.AddressOption(address))
+	if err != nil {
+		return nil, err
+	}
+	if err := cl.Connect(); err != nil {
+		return nil, err
+	}
+	if err := cl.Start(); err != nil {
+		cl.Close()
+		return nil, err
+	}
+	log.Infof("Client connected and started!")
+	return cl, nil
 }

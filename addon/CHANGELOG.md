@@ -1,3 +1,11 @@
+# Version 1.6
+* Removed the vehicle emulator (`phev2mqtt emulator`)
+* Fixed Home Assistant discovery: the climate select and charge timer switch now read the topics phev2mqtt actually publishes
+* State topics are now retained, so Home Assistant keeps the last known values after a restart
+* Car commands from MQTT no longer block other MQTT messages while waiting for the car
+* Reconnect attempts to the car back off (up to 10s) while it is unreachable
+* Smaller image: static build without libpcap or a C toolchain
+
 # Version 1.5
 * Add-on now builds from the ntigch/phev2mqtt fork instead of buxtronix/phev2mqtt (optionally pin with the PHEV2MQTT_REF build arg)
 * Updated all Go dependencies (paho.mqtt, logrus, cobra, viper, x/*); requires Go 1.24+ to build

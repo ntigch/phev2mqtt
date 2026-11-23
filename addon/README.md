@@ -1,19 +1,55 @@
-This requires that Home Assistant is already connected to the Outlander, you should be able to check this by ensuring that you can ping 192.168.8.46
+# PHEV Home Assistant add-on
 
-Once installed as a local addon, you must configure the mqtt target and username/password before start and stop phev2mqtt from the GUI
-For my docker install the host machine's address (which is also running the mqtt addon) is 172.30.32.1:1883 (I suspect this could be different depending on install)
+Runs the `phev2mqtt client mqtt` gateway as a local Home Assistant add-on. It builds
+phev2mqtt from this fork (`ntigch/phev2mqtt`, `master` branch by default). The car
+appears in Home Assistant via MQTT discovery.
 
-These files need to go in a directory (called phev for example) in the local addons.
+## Before you start
 
-If you ssh into the main os, this will be in /usr/share/hassio/addons/local/phev
-If you ssh in using the terminal add on, this will be /addons/phev (or symblink /root/addons/phev)
-If you connect to the hassio_supervisort docker container, this will be /data/addons/local/phev
+ * The Home Assistant host must already be connected to the car's Wifi, and its MAC
+   address registered with the car (see the main [README](../README.md)). Check that
+   you can ping `192.168.8.46` from the host.
+ * You need an MQTT broker, e.g. the Mosquitto broker add-on, with MQTT set up in Home
+   Assistant.
 
-More information about local addons at https://developers.home-assistant.io/docs/add-ons/tutorial/
+## Install
 
-If you set the debug flag on, it will just start the container and sleep indefinitely, you can then run the phev2mqtt manually, to run "phev2mqtt client watch" for example.
+Copy the files in this directory into a directory (e.g. `phev`) in your local add-ons:
 
-NOTE - on 32bit Raspberry Pi there's an issue with the latest alpine docker images and old versions of libseccomp (including the ones in Raspbian repos), this will stop the Dockerfile building. In order to overcome this, you may need to manually install a newer version with
+| How you connect | Path |
+|---|---|
+| SSH into the main OS | `/usr/share/hassio/addons/local/phev` |
+| Terminal add-on | `/addons/phev` (or the symlink `/root/addons/phev`) |
+| `hassio_supervisor` docker container | `/data/addons/local/phev` |
 
-    wget http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/libseccomp2_2.4.4-1~bpo10+1_armhf.deb
-    dpkg -i libseccomp2_2.4.4-1~bpo10+1_armhf.deb
+Then refresh the add-on store, install **PHEV** from the local add-ons, and set the
+options below before starting it. More about local add-ons:
+https://developers.home-assistant.io/docs/add-ons/tutorial/
+
+To build a fixed version instead of the latest `master`, set the `PHEV2MQTT_REF` build
+arg in the `Dockerfile` to a tag or commit.
+
+## Options
+
+| Option | Description |
+|---|---|
+| `mqtt_server` | Broker as `host:port`, without `tcp://`. On a docker install with the Mosquitto add-on this is often `172.30.32.1:1883` (it can differ per install). |
+| `mqtt_user` / `mqtt_password` | MQTT login |
+| `debug` | If on, the container just starts and sleeps, so you can open a shell in it and run `/opt/phev2mqtt` by hand, e.g. `/opt/phev2mqtt client watch` |
+
+## Notes
+
+ * MQTT state is retained, so entities keep their last known values when Home
+   Assistant restarts. They show as unavailable while the car isn't connected.
+ * The image contains a static build without the pcap decoder, so `decode pcap` is
+   not available inside the add-on.
+ * On 32-bit Raspberry Pi, recent Alpine images can fail to build with old
+   `libseccomp` versions (including the ones in the Raspbian repos). If so, install a
+   newer version manually:
+
+   ```bash
+   wget http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/libseccomp2_2.4.4-1~bpo10+1_armhf.deb
+   dpkg -i libseccomp2_2.4.4-1~bpo10+1_armhf.deb
+   ```
+
+See [CHANGELOG.md](CHANGELOG.md) for changes between versions.

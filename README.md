@@ -4,9 +4,18 @@ Utility to interact with a Mitsubishi Outlander PHEV via the Wifi remote
 control protocol.
 Forked from https://github.com/Will-Honor/phev2mqtt who got it from https://github.com/buxtronix/phev2mqtt
 
-This fork adds NetworkManager scripts and docs for reliable car Wifi reconnects
-(see `scripts/`, tested on Debian trixie), updated dependencies with CI
-vulnerability checks, and a Home Assistant add-on that builds from this fork.
+This fork adds:
+
+ * NetworkManager scripts and docs for reliable car Wifi reconnects (see `scripts/`,
+   tested on Debian trixie)
+ * Fixes for car and MQTT reconnects, plus Home Assistant discovery fixes (the climate
+   select and charge timer switch now show their state)
+ * Retained MQTT state, so Home Assistant keeps the last known values after a restart
+ * Car commands from MQTT are queued, so a slow car doesn't block other MQTT messages
+ * Updated dependencies with CI vulnerability checks
+ * A Home Assistant add-on that builds from this fork (see [addon/README.md](addon/README.md))
+
+The vehicle emulator from the original project has been removed.
 
 Inspired by https://github.com/phev-remote/ but written entirely in Go.
 
@@ -26,11 +35,12 @@ Tested against a MY18 vehicle and my own MY20.
  * Near-instant response to commands
  * *tested on MY18 & MY20*
 
-Also includes some debugging utilities, and a vehicle emulator.
+Also includes some debugging utilities (see [Debugging utilities](#debugging-utilities)).
 
 ## Requirements
 
- * Go compiler
+ * Go 1.24 or newer
+ * A Wifi interface that can connect to the car
 
 ## Licence, etc
 
@@ -60,9 +70,8 @@ Contributions and PRs are welcome.
 
 #### Download, extract, and compile phev2mqtt
 
- * Download the phev2mqtt archive
- * Extract it
- * Go into its the top level directory and run `go build`
+ * Download and extract the phev2mqtt archive, or `git clone https://github.com/ntigch/phev2mqtt.git`
+ * Go into its top level directory and run `go build`
  * Verify it runs with `./phev2mqtt -h`
 
 ### Connecting to the vehicle.
@@ -110,24 +119,49 @@ be used to control certain aspects of the vehicle.
 
 Start the MQTT gateway with:
 
-`./phev2mqtt client mqtt --mqtt_server tcp://<your_mqtt_address:1883/ [--mqtt_username <mqtt_username>] [--mqtt_password <mqtt_password>]`
+`./phev2mqtt client mqtt --mqtt_server tcp://<your_mqtt_address>:1883/ [--mqtt_username <mqtt_username>] [--mqtt_password <mqtt_password>]`
 
-The following topics are published:
+The gateway keeps retrying the car connection. While the car can't be reached it
+waits a little longer between attempts (up to 10 seconds), and goes back to fast
+retries once it has been connected.
+
+#### Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--address` | `192.168.8.46:8080` | Address of the car |
+| `--mqtt_server` | `tcp://127.0.0.1:1883` | MQTT broker address |
+| `--mqtt_username` / `--mqtt_password` | | MQTT login |
+| `--mqtt_topic_prefix` | `phev` | Prefix for all topics below |
+| `--mqtt_disable_register_set_command` | `false` | Don't subscribe to `phev/set/#`, so the car can't be controlled via MQTT |
+| `--ha_discovery` | `true` | Publish Home Assistant discovery configs |
+| `--ha_discovery_prefix` | `homeassistant` | Home Assistant discovery prefix |
+| `--update_interval` | `5m` | How often to ask the car for a full register update |
+| `--wifi_restart_time` | `0` (off) | Run `--wifi_restart_command` if the car hasn't been connected for this long |
+| `--wifi_restart_retry_time` | `2m` | Minimum time between Wifi restart attempts |
+| `--wifi_restart_command` | `sudo ip link set wlan0 down && sleep 3 && sudo ip link set wlan0 up` | Command run to restart Wifi; empty disables it |
+
+Options can also be set in a config file (`--config`, default `$HOME/.phev2mqtt.yaml`)
+or as upper-case environment variables (e.g. `MQTT_SERVER`).
+
+#### Topics
+
+The following topics are published. They are retained, so Home Assistant shows the
+last known values after it restarts; `phev/available` shows whether they are current.
 
 | Topic/prefix | Description |
 |---|---|
 | phev/register/[register] | Raw values of each register, as hex strings |
 | phev/available | Wifi connection status to car. *online* or *offline* |
 | phev/battery/level | Current drive battery level as a percent |
-| phev/climate/status | Whether the car AC is on |
-| phev/climate/mode | Mode of the AC, if on. *cool*, *heat*, *windscreen* |
-| phev/climate/[mode] | Alternative of above. Modes are *cool*, *heat*, *windscreen* which can be *off* or *on* |
+| phev/climate/state | Climate state: *off*, *cool*, *heat*, *windscreen*, *terminated* or *unknown* |
+| phev/climate/[mode] | Per-mode state for *cool*, *heat*, *windscreen*: *on* or *off* |
 | phev/charge/charging | Whether the battery is charging. *on* or *off* |
 | phev/charge/plug | If the charging plug is *unplugged* or *connected*. |
 | phev/charge/remaining | Minutes left, if charging. |
-| phev/door/locked | Whether the car is locked. *on* or *off* |
-| ~~phev/door/front_left~~ | State of doors. *closed* or *open* |
-| ~~phev/door/front_right~~ | State of doors. *closed* or *open* |
+| phev/door/locked | Lock state: *closed* when locked, *open* when unlocked |
+| ~~phev/door/front_left~~ | Deprecated alias of front_passenger |
+| ~~phev/door/front_right~~ | Deprecated alias of driver |
 | phev/door/front_passenger | State of doors. *closed* or *open* |
 | phev/door/driver | State of doors. *closed* or *open* |
 | phev/door/rear_left | State of doors. *closed* or *open* |
@@ -140,8 +174,11 @@ The following topics are published:
 | phev/lights/interior | Interior lights. *on* or *off* |
 | phev/vin | Discovered VIN of the car |
 | phev/registrations | Number of wifi clients registered to the car |
+| phev/ecuversion | ECU software version |
 
-The following topics are subscribed to and can be used to change state on the car:
+The following topics are subscribed to and can be used to change state on the car.
+Commands are queued and sent to the car one at a time; they are dropped if the car
+isn't connected.
 
 | Topic/prefix | Description |
 |---|---|
@@ -149,15 +186,18 @@ The following topics are subscribed to and can be used to change state on the ca
 | phev/set/parkinglights | Set parking lights *on* or *off* |
 | phev/set/headlights | Set head lights *on* or *off* |
 | phev/set/cancelchargetimer | Cancel charge timer (any payload) |
-| phev/set/climate/[mode] | Set ac/climate state (cool/heat/windscreen/off) for [payload] minutes (10/20/30[on]) |
+| phev/set/climate/[mode] | Set climate mode (cool/heat/windscreen/off). Payload is the duration in minutes: *10*, *20*, *30* (*on* = 30), or *off* |
+| phev/set/climate/mode | Set climate mode from the payload (*cool*, *heat*, *windscreen* or *off*), for 30 minutes |
 | phev/set/climate/state | `[payload]=reset` clears "terminated" state |
 | phev/connection | Change car connection state to (on/off/restart) |
+| phev/settings/dump | Log the car settings received so far, then clear them |
 
 #### Home Assistant discovery
 
 The client supports [Home Assistant MQTT Discovery](https://www.home-assistant.io/docs/mqtt/discovery/) by default.
 
-After initial discovery, re-run the binary for the entities to appear. You can
+The entities appear once phev2mqtt has connected to the car and read its VIN. They
+are published again when Home Assistant or the MQTT broker restarts. You can
 search for "phev" in your entity list. Your car should also appear as a device
 in the Devices tab.
 
@@ -272,6 +312,20 @@ network={
 
 ```
 
+### Debugging utilities
+
+All `client` commands connect to the car (use `--address` if it isn't at `192.168.8.46:8080`).
+The official app must be disconnected.
+
+| Command | Description |
+|---|---|
+| `phev2mqtt client watch` | Show register updates from the car as they arrive |
+| `phev2mqtt client set <reg>:<value> ...` | Set registers (hex), e.g. `0b:02` sets register 0x0b to 0x02. `--wait_duration` (default 10s) waits after connecting, `--send_interval` (default 1s) between registers |
+| `phev2mqtt client register` / `unregister` | Register or unregister this machine's Wifi MAC address with the car |
+| `phev2mqtt decode hex <hex> ...` | Decode raw messages given as hex strings |
+| `phev2mqtt decode file <file>` | Decode raw messages from a file of hex (whitespace is ignored) |
+| `phev2mqtt decode pcap <file>` | Decode a packet capture (needs a `-tags pcap` build, see below) |
+
 ### Sniffing the official client
 
 Further development of this library can be done with a packet dump of the official
@@ -296,22 +350,3 @@ the packets with original timings which can help pinpoint app events.
 
 You can also specify *tcp:<host>:<port>* which will connect to that host/port
 over TCP and decode that traffic - useful when live sniffing to a TCP service.
-
-### Vehicle emulator
-
-There is an emulator built in which can be used to test functionality without needing
-a real car (and also reduces risk of putting your car into weird states).
-
-Start it with `phev2mqtt emulator` and then you can point a client at it.
-
-The official app will always try to connect to IP `192.168.8.46`, so you'll need
-to ensure you run `phev2mqtt` on a machine with this IP and which you can
-reach via WIFI. The author uses a Raspberry Pi setup as an AP (using hostapd)
-and runs `phev2mqtt` on it, though you could also tunnel the TCP connection to
-a dev machine.
-
-The app should successfully be able to register with the emulator (it might take
-a couple of goes).
-
-Any settings sent by the app won't actually change state for now, but it can
-be useful for sniffing the app.
