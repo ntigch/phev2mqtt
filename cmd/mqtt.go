@@ -78,19 +78,23 @@ func (c *climate) mqttStates() map[string]string {
 		return m
 	}
 	switch *c.state {
-	case protocol.PreACOn: m["/climate/state"] = *c.mode
-	case protocol.PreACOff: {
-		m["/climate/state"] = "off"
-		return m
-	}
-	case protocol.PreACTerminated: {
-		m["/climate/state"] = "terminated"
-		return m
-	}
-	default: {
-		m["/climate/state"] = "unknown"
-		return m
-	}
+	case protocol.PreACOn:
+		m["/climate/state"] = *c.mode
+	case protocol.PreACOff:
+		{
+			m["/climate/state"] = "off"
+			return m
+		}
+	case protocol.PreACTerminated:
+		{
+			m["/climate/state"] = "terminated"
+			return m
+		}
+	default:
+		{
+			m["/climate/state"] = "unknown"
+			return m
+		}
 	}
 	m["/climate/state"] = *c.mode
 	switch *c.mode {
@@ -127,7 +131,7 @@ func restartWifi(cmd *cobra.Command) error {
 	restartCmd := exec.Command("/bin/sh", "-c", restartCommand)
 
 	stdoutStderr, err := restartCmd.CombinedOutput()
-	if len( stdoutStderr ) > 0 {
+	if len(stdoutStderr) > 0 {
 		log.Infof("Output from wifi restart: %s", stdoutStderr)
 	}
 	return err
@@ -153,9 +157,9 @@ type mqttClient struct {
 
 	prefix string
 
-	haDiscovery		bool
-	haDiscoveryPrefix	string
-	haPublishedDiscovery	bool
+	haDiscovery          bool
+	haDiscoveryPrefix    string
+	haPublishedDiscovery bool
 
 	climate *climate
 	enabled bool
@@ -223,23 +227,23 @@ func (m *mqttClient) resetDiscovery() {
 func (m *mqttClient) Run(cmd *cobra.Command, args []string) error {
 	m.setEnabled(true) // Default.
 
-	mqttServer		:= viper.GetString("mqtt_server")
-	mqttUsername		:= viper.GetString("mqtt_username")
-	mqttPassword		:= viper.GetString("mqtt_password")
-	mqttDisableSet		:= viper.GetBool("mqtt_disable_register_set_command")
-	m.prefix		 = viper.GetString("mqtt_topic_prefix")
-	m.haDiscovery		 = viper.GetBool("ha_discovery")
-	m.haDiscoveryPrefix	 = viper.GetString("ha_discovery_prefix")
-	m.updateInterval	 = viper.GetDuration("update_interval")
-	wifiRestartTime		:= viper.GetDuration("wifi_restart_time")
-	restartCommand		:= viper.GetString("wifi_restart_command")
+	mqttServer := viper.GetString("mqtt_server")
+	mqttUsername := viper.GetString("mqtt_username")
+	mqttPassword := viper.GetString("mqtt_password")
+	mqttDisableSet := viper.GetBool("mqtt_disable_register_set_command")
+	m.prefix = viper.GetString("mqtt_topic_prefix")
+	m.haDiscovery = viper.GetBool("ha_discovery")
+	m.haDiscoveryPrefix = viper.GetString("ha_discovery_prefix")
+	m.updateInterval = viper.GetDuration("update_interval")
+	wifiRestartTime := viper.GetDuration("wifi_restart_time")
+	restartCommand := viper.GetString("wifi_restart_command")
 
 	if restartCommand == "" {
 		log.Infof("WiFi restart disabled")
 	}
 
 	m.resetDiscovery()
-	m.lastError		= nil
+	m.lastError = nil
 
 	if mqttDisableSet {
 		log.Info("Setting vechicle registers via MQTT is disabled")
@@ -340,10 +344,10 @@ func (m *mqttClient) republishDiscovery() {
 }
 
 func (m *mqttClient) publish(topic, payload string) {
-//	if cache := m.mqttData[topic]; cache != payload {
-		m.client.Publish(m.topic(topic), 0, false, payload)
-		m.mqttData[topic] = payload
-//	}
+	//	if cache := m.mqttData[topic]; cache != payload {
+	m.client.Publish(m.topic(topic), 0, false, payload)
+	m.mqttData[topic] = payload
+	// }
 }
 
 func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Message) {
@@ -613,7 +617,7 @@ func (m *mqttClient) publishRegister(msg *protocol.PhevMessage) {
 			m.publish("/battery/level", fmt.Sprintf("%d", reg.Level))
 		} else {
 			if cache := m.mqttData["/battery/level"]; cache != "" {
-				m.publish("/battery/level", cache )
+				m.publish("/battery/level", cache)
 				log.Debugf("Ignoring battery level reading: %v, publishing last best known: %v", reg.Level, cache)
 			}
 		}
@@ -979,7 +983,7 @@ func (m *mqttClient) publishHomeAssistantDiscovery(vin, topic, name string) {
 			d = strings.Replace(d, in, out, -1)
 		}
 		if token := m.client.Publish(topic, 0, true, d); token.Wait() && token.Error() != nil {
-			log.Error( token.Error() )
+			log.Error(token.Error())
 		}
 		//m.client.Publish(topic, 0, false, "{}")
 	}

@@ -1,3 +1,5 @@
+//go:build pcap
+
 /*
 Copyright © 2021 Ben Buxton <bbuxton@gmail.com>
 Copyright © 2026 ntigch
@@ -16,8 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-//go:build pcap
-
 package cmd
 
 import (
@@ -27,10 +27,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ntigch/phev2mqtt/protocol"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"github.com/ntigch/phev2mqtt/protocol"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
