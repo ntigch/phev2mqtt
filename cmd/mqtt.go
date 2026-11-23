@@ -414,7 +414,7 @@ func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Messag
 		values := map[string]byte{"on": 0x1, "off": 0x2}
 		if v, ok := values[strings.ToLower(string(msg.Payload()))]; ok {
 			if err := phev.SetRegister(0xa, []byte{v}); err != nil {
-				log.Infof("Error setting register 0xb: %v", err)
+				log.Infof("Error setting register 0xa: %v", err)
 				return
 			}
 		}
@@ -648,6 +648,16 @@ func (m *mqttClient) publishHomeAssistantDiscovery(vin, topic, name string) {
 	if already {
 		return
 	}
+	for topic, d := range discoveryConfigs(m.haDiscoveryPrefix, vin, topic, name) {
+		if token := m.client.Publish(topic, 0, true, d); token.Wait() && token.Error() != nil {
+			log.Error(token.Error())
+		}
+	}
+}
+
+// discoveryConfigs returns the Home Assistant discovery config payloads,
+// keyed by their discovery topic.
+func discoveryConfigs(discoveryPrefix, vin, topic, name string) map[string]string {
 	discoveryData := map[string]string{
 		// Doors.
 		"%s/binary_sensor/%s_door_locked/config": `{
@@ -816,7 +826,7 @@ func (m *mqttClient) publishHomeAssistantDiscovery(vin, topic, name string) {
 		"%s/switch/%s_cancel_charge_timer/config": `{
 		"name": "__NAME__ Disable Charge Timer",
 		"icon": "mdi:timer-off",
-		"state_topic": "~/battery/charging",
+		"state_topic": "~/charge/charging",
 		"command_topic": "~/set/cancelchargetimer",
 		"avty_t": "~/available",
 		"unique_id": "__VIN___cancel_charge_timer",
@@ -878,7 +888,7 @@ func (m *mqttClient) publishHomeAssistantDiscovery(vin, topic, name string) {
 		"~": "__TOPIC__"}`,
 		"%s/select/%s_climate_on/config": `{
 				"name": "__NAME__ climate state",
-				"state_topic": "~/climate/mode",
+				"state_topic": "~/climate/state",
 				"command_topic": "~/set/climate/mode",
 				"options": [ "off", "heat", "cool", "windscreen"],
 				"avty_t": "~/available",
@@ -977,16 +987,14 @@ func (m *mqttClient) publishHomeAssistantDiscovery(vin, topic, name string) {
 		"__VIN__":   vin,
 		"__TOPIC__": topic,
 	}
-	for topic, d := range discoveryData {
-		topic = fmt.Sprintf(topic, m.haDiscoveryPrefix, vin)
+	configs := make(map[string]string, len(discoveryData))
+	for t, d := range discoveryData {
 		for in, out := range mappings {
-			d = strings.Replace(d, in, out, -1)
+			d = strings.ReplaceAll(d, in, out)
 		}
-		if token := m.client.Publish(topic, 0, true, d); token.Wait() && token.Error() != nil {
-			log.Error(token.Error())
-		}
-		//m.client.Publish(topic, 0, false, "{}")
+		configs[fmt.Sprintf(t, discoveryPrefix, vin)] = d
 	}
+	return configs
 }
 
 func init() {
