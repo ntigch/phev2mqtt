@@ -23,8 +23,6 @@ For further hacking, read the [protocol documentation](protocol/README.md).
 
 Tested against a MY18 vehicle and my own MY20.
 
-![Home Assistant Screenshot](phev-ha.png)
-
 ## Supported functionality
 
  * MQTT proxy to Phev
@@ -81,7 +79,7 @@ Contributions and PRs are welcome.
 On your computer running the phev2mqtt tools, configure a new Wifi connection to the
 car's SSID (it looks like `REMOTE45xxxx`; the password is on the car's Wifi
 information screen). The Wifi MAC address of your computer must be the one registered
-with the car (see below).
+with the car (see below). If you have connected your phone to use the Mitsubishi RemoteCtrl app you can just use the MAC address of your phone.
 
 On a Raspberry Pi, follow [Raspberry Pi setup with auto-start](#raspberry-pi-setup-with-auto-start).
 To see which network stack your system uses, run `systemctl is-active NetworkManager`
