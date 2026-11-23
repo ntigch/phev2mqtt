@@ -4,6 +4,10 @@ Utility to interact with a Mitsubishi Outlander PHEV via the Wifi remote
 control protocol.
 Forked from https://github.com/Will-Honor/phev2mqtt who got it from https://github.com/buxtronix/phev2mqtt
 
+This fork adds NetworkManager scripts and docs for reliable car Wifi reconnects
+(see `scripts/`, tested on Debian trixie), updated dependencies with CI
+vulnerability checks, and a Home Assistant add-on that builds from this fork.
+
 Inspired by https://github.com/phev-remote/ but written entirely in Go.
 
 For further hacking, read the [protocol documentation](protocol/README.md).
@@ -34,6 +38,10 @@ Licenced under the GPLv3 (or later) by the original developer:
 
 Copyright 2021 Ben Buxton <bbuxton@gmail.com>
 
+Modifications in this fork:
+
+Copyright 2026 ntigch
+
 Contributions and PRs are welcome.
 
 ## Getting started.
@@ -42,7 +50,7 @@ Contributions and PRs are welcome.
 
 #### Install Go
 
- * Download and install the latest [Go compiler](https://golang.org/dl/)
+ * Download and install the latest [Go compiler](https://golang.org/dl/) (Go 1.24 or newer is required)
    * Your distro packager may have a version thats too old
    * For raspbian choose the ARMv6 release
 
