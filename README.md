@@ -40,6 +40,281 @@ Also includes some debugging utilities (see [Debugging utilities](#debugging-uti
  * Go 1.24 or newer
  * A Wifi interface that can connect to the car
 
+On a Raspberry Pi, skip this and follow the [Quick start](#quick-start-raspberry-pi-step-by-step) below.
+
+## Quick start: Raspberry Pi (step by step)
+
+This is the recommended way to run phev2mqtt: a small Raspberry Pi that sits near the car,
+joins the car's Wifi, and passes everything on to your MQTT broker (and so to Home
+Assistant). It is written for the **current Raspberry Pi OS (Debian 13 "trixie")**. For older
+versions see [Older Raspberry Pi OS versions](#older-raspberry-pi-os-versions).
+
+> These steps were put together from the project's scripts and standard Raspberry Pi OS
+> usage. Check each command's output as you go, and open an issue if something doesn't
+> match.
+
+### How it fits together
+
+```
+Car (Wifi hotspot) ~~wifi~~> Raspberry Pi --ethernet--> home network --> MQTT broker --> Home Assistant
+```
+
+ * The Pi's **Wifi** is used only to talk to the car. It cannot be on your home Wifi at the same time.
+ * The Pi's **Ethernet** port connects it to your home network, so it can reach your MQTT broker.
+ * The Pi must be within Wifi range of the car (usually parked at home, with the Pi indoors
+   near a window or in the garage).
+
+### What you need
+
+ * A Raspberry Pi with built-in Wifi: Pi 3B+, 4, 5 or Zero 2 W. (To boot from USB, as
+   recommended below, use a 3B+ or newer. The Zero 2 W has no Ethernet port.)
+ * A good-quality **USB stick** (recommended), or a good SD card
+ * A decent power supply for your Pi model, and an Ethernet cable to your router
+ * The car's Wifi name (SSID, like `REMOTE45xxxx`) and password, from the car's Wifi
+   information screen (see the [Mitsubishi instructions](https://www.mitsubishi-motors.com/en/products/outlander_phev/app/remote/))
+ * The address of your MQTT broker, e.g. `192.168.1.50` (the Mosquitto add-on in Home
+   Assistant works; your Home Assistant IP address is often the right one)
+ * A computer to prepare the drive and log in to the Pi
+
+### Step 1: Put Raspberry Pi OS on a USB drive (or SD card)
+
+The Pi writes logs constantly. Because of this, an SD card slowly wears out and may
+corrupt after months of 24/7 use. A good USB stick is much more reliable, so this guide
+recommends booting from USB. It is the same procedure as for an SD card.
+
+1. Install [Raspberry Pi Imager](https://www.raspberrypi.com/software/) on your computer.
+2. Plug in your USB drive (or SD card). **Everything on it will be erased.**
+3. In Imager choose your Pi model, then **Raspberry Pi OS (other) -> Raspberry Pi OS Lite (64-bit)**,
+   then select your USB drive as the storage.
+4. When asked to customise, set a hostname (e.g. `phev`), a username and password, and
+   enable **SSH**. You don't need to enter Wifi details: the Pi uses Ethernet.
+5. Write the drive.
+
+**Booting from USB:**
+
+ * **Pi 3B+, 4 and 5:** with a recent firmware the Pi boots from USB automatically when
+   there's **no SD card inserted**. Just plug in the USB drive and the network cable, then power on.
+ * If the Pi doesn't start from USB, its bootloader is probably old or the boot order
+   prefers SD. Boot it once from any SD card with Raspberry Pi OS, then run
+   `sudo raspi-config`, choose **Advanced Options -> Bootloader Version -> Latest**
+   and then **Advanced Options -> Boot Order -> NVMe/USB Boot**, reboot, then shut down and
+   move your system to the USB drive. (Menu names can change; see the official docs.)
+ * On a Pi 5, use the official power supply: with a weaker one the Pi limits the power to
+   USB devices, which can stop a stick from working.
+
+More details are in the official documentation:
+[Raspberry Pi hardware / boot options](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html)
+and [raspi-config](https://www.raspberrypi.com/documentation/computers/configuration.html).
+
+**Which stick?** (General advice; I haven't tested specific models with this project.)
+
+ * Pick a quality stick from a known brand with decent write speeds, e.g. the SanDisk
+   Extreme or Extreme Pro, or the Samsung Bar Plus or Fit Plus. Avoid cheap no-name sticks.
+ * **Size:** 32-64 GB is plenty. Bigger gives no benefit here.
+ * Plug it into a blue USB 3 port on a Pi 4 or 5.
+ * Beware of "too good to be true" capacities and prices: fake flash drives are common.
+
+If you stay on an SD card, use a good brand (a high-endurance card for dashcams works well).
+
+### Step 2: Log in and update the Pi
+
+Find the Pi's IP address in your router (or try `ping phev.local`), then log in from your computer:
+
+```bash
+ssh <your_username>@phev.local
+```
+
+Update everything and install the tools needed to build the program:
+
+```bash
+sudo apt update
+sudo apt full-upgrade -y
+sudo apt install -y git golang-go
+```
+
+Check that Go is version 1.24 or newer:
+
+```bash
+go version
+```
+
+You should see something like `go version go1.24.4 linux/arm64`. If it shows an older
+version, see [Older Raspberry Pi OS versions](#older-raspberry-pi-os-versions) for how to
+install a newer Go.
+
+### Step 3: Download and build phev2mqtt
+
+```bash
+cd ~
+git clone https://github.com/ntigch/phev2mqtt.git
+cd phev2mqtt
+go build
+sudo install -m 755 phev2mqtt /usr/local/bin/phev2mqtt
+```
+
+The build takes a minute or two on a Pi and prints nothing when it works. Check:
+
+```bash
+phev2mqtt -h
+```
+
+You should see the help text.
+
+### Step 4: Choose the Wifi MAC address for the car
+
+The car only talks to Wifi devices it has been introduced to, identified by their **MAC
+address**. You need to pick the MAC address the Pi will use on the car's Wifi:
+
+ * **Easiest:** make one up, in the form `02:xx:xx:xx:xx:xx` (using hex digits `0-9` and
+   `a-f`), e.g. `02:11:22:33:44:55`. Pick something unique and write it down. You will
+   register it with the car in step 6.
+ * Or reuse the MAC address of the phone that already works with the Mitsubishi app. (Then
+   you can skip the registration in step 6.)
+
+### Step 5: Connect the Pi's Wifi to the car
+
+The car must be switched on and the Pi must be within Wifi range. Check that your Pi uses
+NetworkManager (it should on current Raspberry Pi OS):
+
+```bash
+systemctl is-active NetworkManager
+```
+
+This should print `active`. Now run the helper script with the car's Wifi name, its
+password and the MAC address from step 4. Keep the quotes around the password:
+
+```bash
+cd ~/phev2mqtt
+sudo scripts/setup-car-wifi-nm.sh '<car_ssid>' '<car_password>' <mac_address>
+```
+
+For example `sudo scripts/setup-car-wifi-nm.sh 'REMOTE45abcd' 'mypassword123' 02:11:22:33:44:55`.
+
+The script creates a NetworkManager connection with the settings the car's old Wifi needs,
+and it restarts NetworkManager. Wait a few seconds, then connect:
+
+```bash
+sudo nmcli connection up '<car_ssid>'
+```
+
+Check that it worked. The Pi should have the address `192.168.8.47`, and the car should answer:
+
+```bash
+ip addr show wlan0
+ping -c 3 192.168.8.46
+```
+
+If you can't reach the car, see [Troubleshooting](#troubleshooting).
+
+### Step 6: Register the Pi with the car
+
+(Skip this if you reused your phone's MAC address in step 4.)
+
+1. Follow the [Mitsubishi instructions](https://www.mitsubishi-motors.com/en/products/outlander_phev/app/remote/)
+   and put the car into registration mode ("Setup Your Vehicle"). You may need to run
+   `sudo nmcli connection up '<car_ssid>'` again afterwards.
+2. Run:
+
+   ```bash
+   phev2mqtt client register
+   ```
+
+   After a short time you should see a message that registration worked.
+
+Now check that data flows. The Mitsubishi app on your phone must be disconnected from the car:
+
+```bash
+phev2mqtt client watch
+```
+
+You should see a stream of messages from the car. Press `Ctrl+C` to stop.
+
+### Step 7: Run it automatically as a service
+
+Create the service file. **Change `192.168.1.50` to your MQTT broker's address**, and
+`<car_ssid>` (in the `ExecStart` line) to the car's Wifi name. If your broker needs a login, add
+`--mqtt_username <user> --mqtt_password <password>`.
+
+```bash
+sudo nano /etc/systemd/system/phev2mqtt.service
+```
+
+Paste this, then save with `Ctrl+O`, `Enter`, and exit with `Ctrl+X`:
+
+```ini
+[Unit]
+Description=phev2mqtt service script
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+# Change the MQTT address (and add the username/password if your broker needs them).
+# The wifi_restart options make it reconnect to the car's Wifi if the car hasn't been seen
+# for 2 minutes. Replace <car_ssid> with the car's Wifi name.
+ExecStart=/usr/local/bin/phev2mqtt --config=/dev/null client mqtt --mqtt_server tcp://192.168.1.50:1883 --wifi_restart_time=2m --wifi_restart_retry_time=1m --wifi_restart_command="nmcli device disconnect wlan0; sleep 2; nmcli connection up '<car_ssid>'" -v=debug
+
+# Restart the program if it stops, after waiting 30 seconds
+Restart=always
+RestartSec=30s
+
+# Tag the log lines. View with: sudo journalctl -f -u phev2mqtt -o cat
+SyslogIdentifier=phev2mqtt
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The service runs as root, so it can run `nmcli` without extra setup. Then start it, and
+make it start at every boot:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now phev2mqtt.service
+```
+
+Watch the log (press `Ctrl+C` to stop watching; the service keeps running):
+
+```bash
+sudo journalctl -f -u phev2mqtt -o cat
+```
+
+You should see it connecting to the car and to MQTT, and then register values scrolling by.
+While the car is out of Wifi range you'll see it retrying; that's normal.
+
+Finally, **restart the Pi** (`sudo reboot`) and check that everything comes back by itself.
+
+### Step 8: See the car in Home Assistant
+
+With Home Assistant connected to the same MQTT broker, the car appears automatically once the Pi
+has connected to the car and read its VIN. Look in **Settings -> Devices & services -> MQTT**,
+or search for "phev" in your entities. See [Home Assistant discovery](#home-assistant-discovery)
+for details.
+
+### Troubleshooting
+
+| Problem | What to try |
+|---|---|
+| `ping 192.168.8.46` fails | Is the car on and in range? Run `sudo nmcli connection up '<car_ssid>'`, then check `ip addr show wlan0` shows `192.168.8.47`. Check `sudo journalctl -u NetworkManager -n 50` for errors. |
+| `ASSOC-REJECT` in the logs | Run the step 5 script again; it sets the plain WPA2 settings the car needs. |
+| `client register` fails | Put the car in registration mode again and run it straight away. Make sure `ip link show wlan0` shows the MAC address from step 4 (after `link/ether`). |
+| `client watch` shows nothing | Disconnect the phone app from the car's Wifi. |
+| The log says it can't reach MQTT | Check the broker address and login in the service file. Test with `ping <broker address>` from the Pi. |
+| The car never appears in Home Assistant | Check the MQTT integration in Home Assistant uses the same broker, and look at the Pi's log for MQTT errors. |
+| The Pi doesn't boot from USB | Remove any SD card, try another USB port (blue USB 3 ports are best on a Pi 4/5), and check the boot order (step 1). |
+
+### Updating phev2mqtt
+
+```bash
+cd ~/phev2mqtt
+git pull
+go build
+sudo install -m 755 phev2mqtt /usr/local/bin/phev2mqtt
+sudo systemctl restart phev2mqtt.service
+```
+
 ## Licence, etc
 
 Licenced under the GPLv3 (or later) by the original developer:
@@ -52,7 +327,10 @@ Copyright 2026 ntigch
 
 Contributions and PRs are welcome.
 
-## Getting started.
+## Manual setup and reference
+
+The [Raspberry Pi quick start](#quick-start-raspberry-pi-step-by-step) is easier if you
+have a Pi. These are the general steps for any Linux machine with a Wifi interface.
 
 ### Compiling
 
@@ -81,10 +359,9 @@ car's SSID (it looks like `REMOTE45xxxx`; the password is on the car's Wifi
 information screen). The Wifi MAC address of your computer must be the one registered
 with the car (see below). If you have connected your phone to use the Mitsubishi RemoteCtrl app you can just use the MAC address of your phone.
 
-On a Raspberry Pi, follow [Raspberry Pi setup with auto-start](#raspberry-pi-setup-with-auto-start).
-To see which network stack your system uses, run `systemctl is-active NetworkManager`
-(`active` means NetworkManager; use the main instructions below, otherwise see the
-legacy section).
+On a Raspberry Pi, follow the [Quick start](#quick-start-raspberry-pi-step-by-step) instead
+of this section: it covers the Wifi setup, registration and auto-start in one go.
+On other systems, use the steps below.
 
 #### Register the client to the car
 
@@ -201,114 +478,6 @@ in the Devices tab.
 
 You can disable this with `--ha_discovery=false` or change the discovery prefix, the default is `--ha_discovery_prefix=homeassistant`.
 
-#### Raspberry Pi setup with auto-start
-
-It's useful to have the tool auto-start when running on e.g a Raspberry Pi. The following
-describes how to set this up.
-
-##### 1. Car Wifi (NetworkManager: Raspberry Pi OS Bookworm and newer, Debian 13 trixie)
-
-Current Raspberry Pi OS releases manage Wifi with NetworkManager, not `wpa_supplicant.conf`.
-Run the helper script with the car's SSID, password and the MAC address the car was
-registered with:
-```
-sudo scripts/setup-car-wifi-nm.sh REMOTE45bhds 'blahblahbla12314' ee:4d:ec:de:7a:91
-```
-
-The last argument is the MAC address the car was registered with. The script
-configures plain WPA2-PSK, a hidden SSID on 2.4 GHz, Wifi power saving off, a fixed
-MAC, and unlimited autoconnect retries. (Tested on Debian 13 "trixie".) Without these NetworkManager can get stuck: the car's old access point
-may reject NetworkManager's default security offer (`ASSOC-REJECT status_code=16`),
-and after a few failures NetworkManager stops auto-connecting for good (so the Pi
-doesn't reconnect when the car returns).
-
-As a safety net, also make `phev2mqtt` re-activate the connection if the car
-hasn't been seen for a while. Use this `ExecStart` in the service below (the
-service user needs passwordless `sudo` for `nmcli`):
-
-```
-ExecStart=/usr/local/bin/phev2mqtt --config=/dev/null client mqtt --mqtt_server tcp://192.168.0.88:1883 --wifi_restart_time=2m --wifi_restart_retry_time=1m --wifi_restart_command="sudo nmcli device disconnect wlan0; sleep 2; sudo nmcli connection up REMOTE45bhds" -v=debug
-```
-
-Activating the connection again also clears NetworkManager's autoconnect block.
-
-##### 2. Service
-
-- Add the following to `/etc/systemd/system/phev2mqtt.service`, updating the MQTT address to
-suit your setup:
-
-```
-[Unit]
-Description=phev2mqtt service script
-StartLimitIntervalSec=5
-After=syslog.target network.target
-
-[Service]
-Type=exec
-ExecStart=/usr/local/bin/phev2mqtt --config=/dev/null client mqtt --mqtt_server tcp://192.168.0.88:1883 -v=debug
-
-# Restart script if stopped
-Restart=always
-# Wait 30s before restart
-RestartSec=30s
-
-# Tag things in the log
-# View with: sudo journalctl -f -u phev2mqtt -o cat
-SyslogIdentifier=phev2mqtt
-
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-- Copy the `phev2mqtt` binary to /usr/local/bin and make sure it's executable.
-
-- Start the service with `sudo systemctl start phev2mqtt.service`
-
-- Enable the service to run at boot, with `sudo systemctl enable phev2mqtt.service`.
-
-- Restart the Pi and verify that it can connect to the car. Also run `ifconfig` and check
-that the `wlan0` interface has the correct mac address. You should also see this interface
-have the IP address `192.168.8.47`.
-
-- Verify that the phev2mqtt service is communicating with the car, by checking
-the logs: `sudo journalctl -f -u phev2mqtt -o cat`
-
-##### Legacy: Raspberry Pi OS Bullseye and older (dhcpcd + wpa_supplicant)
-
-Only use this on older systems that do not run NetworkManager; do not combine it with
-the NetworkManager setup above.
-
-- Edit or add to `/etc/systemd/network/00-default.link` with the following:
-
-```
-[Match]
-# This should be the 'real' (default) mac address of the Pi's wireless interface.
-MACAddress=b8:27:eb:50:c0:52
-
-[Link]
-# This should be the MAC address to use to connect to the car, per above.
-MACAddress=ee:4d:ec:de:7a:91
-NamePolicy=kernel database onboard slot path
-
-```
-
-- Add the car's Wifi info to `/etc/wpa_supplicant/wpa_supplicant.conf`:
-
-```
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=AU
-
-network={
-	ssid="REMOTE45bhds"
-	scan_ssid=1
-	psk="blahblahbla12314"
-}
-
-```
 
 ### Debugging utilities
 
@@ -348,3 +517,62 @@ the packets with original timings which can help pinpoint app events.
 
 You can also specify *tcp:<host>:<port>* which will connect to that host/port
 over TCP and decode that traffic - useful when live sniffing to a TCP service.
+
+## Older Raspberry Pi OS versions
+
+The [Quick start](#quick-start-raspberry-pi-step-by-step) is written for the current
+Raspberry Pi OS (Debian 13 "trixie"). Use the notes below only if you run an older version.
+
+### Bookworm (Debian 12)
+
+Bookworm also uses NetworkManager, so the Quick start steps work, except that the
+`golang-go` package is too old (Go 1.24 or newer is required). Install Go from
+[go.dev/dl](https://go.dev/dl/) instead of `apt`. Check your CPU type with `uname -m`
+(`aarch64` means the `linux-arm64` download, `armv7l` means `linux-armv6l`):
+
+```bash
+# Replace the file name with the current version for your CPU from https://go.dev/dl/
+wget https://go.dev/dl/go1.24.4.linux-arm64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.24.4.linux-arm64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+source ~/.profile
+go version
+```
+
+<details>
+<summary>Bullseye and older (dhcpcd + wpa_supplicant)</summary>
+
+Only use this on older systems that do not run NetworkManager; do not combine it with
+the NetworkManager setup above. Use these two steps instead of Quick start step 5, then
+continue with step 6. In step 7 drop the `--wifi_restart_*` options, since they use `nmcli`.
+
+- Edit or add to `/etc/systemd/network/00-default.link` with the following:
+
+```
+[Match]
+# This should be the 'real' (default) mac address of the Pi's wireless interface.
+MACAddress=b8:27:eb:50:c0:52
+
+[Link]
+# This should be the MAC address to use to connect to the car, per above.
+MACAddress=ee:4d:ec:de:7a:91
+NamePolicy=kernel database onboard slot path
+
+```
+
+- Add the car's Wifi info to `/etc/wpa_supplicant/wpa_supplicant.conf`:
+
+```
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=AU
+
+network={
+	ssid="REMOTE45bhds"
+	scan_ssid=1
+	psk="blahblahbla12314"
+}
+
+```
+</details>
