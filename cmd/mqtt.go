@@ -80,7 +80,7 @@ func (c *climate) mqttStates() map[string]string {
 	switch *c.state {
 	case protocol.PreACOn:
 		m["/climate/state"] = *c.mode
-	case protocol.PreACOff:
+	case protocol.PreACOff, protocol.PreACOffMY18:
 		{
 			m["/climate/state"] = "off"
 			return m

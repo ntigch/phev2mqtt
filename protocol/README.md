@@ -337,7 +337,7 @@ __must be converted from big endian to little endian__ to be useful
 
 | Byte(s) | Description |
 |---------|-------------|
-| 0 | Preconditioning state [0 = off, 2 = on, 3 = cancelled by open door/low battery] |
+| 0 | Preconditioning state [0 or 1 = off, 2 = on, 3 = cancelled by open door/low battery] |
 | 1 | Unknown |
 | 2 | Unknown |
 
@@ -345,6 +345,8 @@ __must be converted from big endian to little endian__ to be useful
 026e09 = windscreen on/10min (on another vehicle)
 030000 = after door openining
 000000 = precondition not active/terminated normally (e.g. timer elapsed.)
+010000 = precondition off (seen on a MY20 vehicle)
+02ce02 = heat on (MY20)
 
 ### 0x12 - Car time sync
 

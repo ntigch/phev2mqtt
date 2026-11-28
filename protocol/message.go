@@ -703,6 +703,7 @@ type PreACState int8
 
 const (
 	PreACOff        PreACState = 0
+	PreACOffMY18    PreACState = 1 // Off as reported by MY18/MY20 cars (e.g. 010000)
 	PreACOn         PreACState = 2
 	PreACTerminated PreACState = 3
 )
@@ -732,7 +733,7 @@ func (r *RegisterPreACState) Raw() string {
 
 func (r *RegisterPreACState) String() string {
 	switch r.State {
-	case PreACOff:
+	case PreACOff, PreACOffMY18:
 		return "Pre-AC off"
 	case PreACOn:
 		return "Pre-AC on"

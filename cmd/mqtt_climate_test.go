@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"testing"
+
+	"github.com/ntigch/phev2mqtt/protocol"
 )
 
 func TestParseClimate(t *testing.T) {
@@ -82,5 +84,28 @@ func TestClimatePayloadMY18(t *testing.T) {
 	}
 	if got := climatePayloadMY18(0x0, 0x0); !bytes.Equal(got, []byte{0x1, 0x0, 0x0, 0x0}) {
 		t.Errorf("off: got %x", got)
+	}
+}
+
+func TestClimateMqttStates(t *testing.T) {
+	for _, tc := range []struct {
+		state protocol.PreACState
+		mode  string
+		want  string
+		heat  string
+	}{
+		{protocol.PreACOff, "heat", "off", "off"},
+		{protocol.PreACOffMY18, "heat", "off", "off"}, // 010000 on MY18/MY20
+		{protocol.PreACOn, "heat", "heat", "on"},      // 02ce02
+		{protocol.PreACTerminated, "heat", "terminated", "off"},
+		{protocol.PreACState(7), "heat", "unknown", "off"},
+	} {
+		c := new(climate)
+		c.setMode(tc.mode)
+		c.setState(tc.state)
+		got := c.mqttStates()
+		if got["/climate/state"] != tc.want || got["/climate/heat"] != tc.heat {
+			t.Errorf("state %d: got state=%q heat=%q, want %q/%q", tc.state, got["/climate/state"], got["/climate/heat"], tc.want, tc.heat)
+		}
 	}
 }

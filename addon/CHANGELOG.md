@@ -1,3 +1,6 @@
+# Version 1.10
+* Fixed climate state showing *unknown* when climate is off on MY18/MY20 cars (they report off as 1, not 0)
+
 # Version 1.9
 * Fixed Home Assistant "Invalid option ... 'unknown'" warnings: the climate state select now shows *off* when the car reports *terminated* or *unknown*
 * New read-only "climate status" sensor with the full climate state, including *terminated* and *unknown*
