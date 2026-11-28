@@ -1,3 +1,6 @@
+# Version 1.8
+* New Home Assistant select "climate duration" (10, 20 or 30 minutes): the Heat, Cool and Windscreen switches and the climate state select now run for the chosen time instead of always 30 minutes. The choice is kept across restarts.
+
 # Version 1.7
 * Security update: built with Go 1.27.4; fixed GO-2026-6278 (gorilla/websocket); updated dependencies (golang.org/x/net, x/sys, x/text, x/sync, paho.mqtt, fsnotify, go-toml, mapstructure, pflag, yaml)
 * Building from source now requires Go 1.27.4+ (the Debian/Raspberry Pi OS `golang-go` package is too old)

@@ -48,7 +48,7 @@ more details on the topics.
 `,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mc := &mqttClient{climate: new(climate)}
+		mc := &mqttClient{climate: new(climate), climateDuration: defaultClimateDuration}
 		return mc.Run(cmd, args)
 	},
 }
@@ -163,6 +163,9 @@ type mqttClient struct {
 
 	climate *climate
 	enabled bool
+	// Duration code used when climate is switched on without one
+	// (set/climate/duration). Guarded by stateMu.
+	climateDuration byte
 
 	// Car commands from MQTT, run in order by runCommands so that slow
 	// register writes don't block the MQTT client's message handling.
@@ -210,6 +213,18 @@ func (m *mqttClient) setEnabled(v bool) {
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 	m.enabled = v
+}
+
+func (m *mqttClient) getClimateDuration() byte {
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+	return m.climateDuration
+}
+
+func (m *mqttClient) setClimateDuration(d byte) {
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+	m.climateDuration = d
 }
 
 func (m *mqttClient) isCarConnected() bool {
@@ -293,6 +308,7 @@ func (m *mqttClient) Run(cmd *cobra.Command, args []string) error {
 			availability = "online"
 		}
 		mqtt_client.Publish(m.topic("/available"), 0, true, availability)
+		mqtt_client.Publish(m.topic("/climate/duration"), 0, true, climateDurationMinutes(m.getClimateDuration()))
 		m.resetDiscovery()
 		m.republishDiscovery()
 	}
@@ -424,6 +440,18 @@ func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Messag
 	log.Infof("Topic: [%s] Payload: [%s]", msg.Topic(), msg.Payload())
 
 	topicParts := strings.Split(msg.Topic(), "/")
+	if msg.Topic() == m.topic("/set/climate/duration") {
+		// Handled without the car: it only changes a setting, and the
+		// retained value arrives at startup before the car is connected.
+		d, err := parseClimateDuration(strings.ToLower(strings.TrimSpace(string(msg.Payload()))))
+		if err != nil {
+			log.Errorf("%v", err)
+			return
+		}
+		m.setClimateDuration(d)
+		m.client.Publish(m.topic("/climate/duration"), 0, true, climateDurationMinutes(d))
+		return
+	}
 	phev := m.getPhev()
 	if phev == nil && msg.Topic() != m.haDiscoveryPrefix+"/status" {
 		log.Warnf("Not yet connected to the car, ignoring message on [%s]", msg.Topic())
@@ -494,7 +522,7 @@ func (m *mqttClient) handleIncomingMqtt(mqtt_client mqtt.Client, msg mqtt.Messag
 		payload := strings.ToLower(string(msg.Payload()))
 
 		parts := strings.Split(topic, "/")
-		mode, duration, err := parseClimate(parts[len(parts)-1], payload)
+		mode, duration, err := parseClimate(parts[len(parts)-1], payload, m.getClimateDuration())
 		if err != nil {
 			log.Errorf("%v", err)
 			return
@@ -950,6 +978,21 @@ func discoveryConfigs(discoveryPrefix, vin, topic, name string) map[string]strin
 		},
 				"icon": "mdi:car-seat-heater",
 				"~": "__TOPIC__"}`,
+		"%s/select/%s_climate_duration/config": `{
+		"name": "__NAME__ climate duration",
+		"icon": "mdi:timer-outline",
+		"state_topic": "~/climate/duration",
+		"command_topic": "~/set/climate/duration",
+		"options": ["10", "20", "30"],
+		"retain": true,
+		"unique_id": "__VIN___climate_duration",
+		"dev": {
+			"name": "PHEV __VIN__",
+			"identifiers": ["phev-__VIN__"],
+			"manufacturer": "Mitsubishi",
+			"model": "Outlander PHEV"
+		},
+		"~": "__TOPIC__"}`,
 		// Lights.
 		"%s/light/%s_parkinglights/config": `{
 		"name": "__NAME__ Park Lights",

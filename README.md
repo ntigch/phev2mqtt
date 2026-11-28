@@ -12,6 +12,7 @@ This fork adds:
    select and charge timer switch now show their state)
  * Retained MQTT state, so Home Assistant keeps the last known values after a restart
  * Car commands from MQTT are queued, so a slow car doesn't block other MQTT messages
+ * A Home Assistant select to choose how long climate runs (10, 20 or 30 minutes)
  * Updated dependencies with CI vulnerability checks
  * A Home Assistant add-on that builds from this fork (see [addon/README.md](addon/README.md))
 
@@ -445,6 +446,7 @@ last known values after it restarts; `phev/available` shows whether they are cur
 | phev/battery/level | Current drive battery level as a percent |
 | phev/climate/state | Climate state: *off*, *cool*, *heat*, *windscreen*, *terminated* or *unknown* |
 | phev/climate/[mode] | Per-mode state for *cool*, *heat*, *windscreen*: *on* or *off* |
+| phev/climate/duration | Minutes climate runs when switched on without a duration: *10*, *20* or *30* |
 | phev/charge/charging | Whether the battery is charging. *on* or *off* |
 | phev/charge/plug | If the charging plug is *unplugged* or *connected*. |
 | phev/charge/remaining | Minutes left, if charging. |
@@ -475,8 +477,9 @@ isn't connected.
 | phev/set/parkinglights | Set parking lights *on* or *off* |
 | phev/set/headlights | Set head lights *on* or *off* |
 | phev/set/cancelchargetimer | Cancel charge timer (any payload) |
-| phev/set/climate/[mode] | Set climate mode (cool/heat/windscreen/off). Payload is the duration in minutes: *10*, *20*, *30* (*on* = 30), or *off* |
-| phev/set/climate/mode | Set climate mode from the payload (*cool*, *heat*, *windscreen* or *off*), for 30 minutes |
+| phev/set/climate/[mode] | Set climate mode (cool/heat/windscreen/off). Payload is the duration in minutes: *10*, *20*, *30*, *on* (uses the duration chosen with `phev/set/climate/duration`, default 30), or *off* |
+| phev/set/climate/mode | Set climate mode from the payload (*cool*, *heat*, *windscreen* or *off*), for the duration chosen with `phev/set/climate/duration` (default 30 minutes) |
+| phev/set/climate/duration | Choose how long climate runs when switched on with *on* or via `phev/set/climate/mode`: *10*, *20* or *30*. Works while the car is offline; publish it retained to keep it across restarts (the Home Assistant select does this) |
 | phev/set/climate/state | `[payload]=reset` clears "terminated" state |
 | phev/connection | Change car connection state to (on/off/restart) |
 | phev/settings/dump | Log the car settings received so far, then clear them |

@@ -29,6 +29,7 @@ var publishedStateTopics = map[string]bool{
 	"/lights/parking":       true,
 	"/lights/interior":      true,
 	"/lights/hazard":        true,
+	"/climate/duration":     true,
 }
 
 // Command topics handled by handleIncomingMqtt.
@@ -41,6 +42,7 @@ var handledCommandTopics = map[string]bool{
 	"/set/climate/cool":       true,
 	"/set/climate/windscreen": true,
 	"/set/climate/mode":       true,
+	"/set/climate/duration":   true,
 }
 
 func TestDiscoveryTopicsExist(t *testing.T) {
