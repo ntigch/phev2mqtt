@@ -121,7 +121,7 @@ If you stay on an SD card, use a good brand (a high-endurance card for dashcams 
 Find the Pi's IP address in your router (or try `ping phev.local`), then log in from your computer:
 
 ```bash
-ssh <your_username>@phev.local
+ssh <your_username>@<pi-IP-address>
 ```
 
 Update everything and install git:
