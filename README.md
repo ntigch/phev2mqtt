@@ -244,8 +244,8 @@ You should see a stream of messages from the car. Press `Ctrl+C` to stop.
 ### Step 7: Run it automatically as a service
 
 Create the service file. **Change `192.168.1.50` to your MQTT broker's address**, and
-`<car_ssid>` (in the `ExecStart` line) to the car's Wifi name. If your broker needs a login, add
-`--mqtt_username <user> --mqtt_password <password>`.
+`<car_ssid>` (in the `ExecStart` line, all the way to the right) to the car's Wifi name. If your broker needs a login, add
+`--mqtt_username <user> --mqtt_password <password>` right after the --mqtt_server address.
 
 ```bash
 sudo nano /etc/systemd/system/phev2mqtt.service
