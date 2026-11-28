@@ -37,7 +37,7 @@ Also includes some debugging utilities (see [Debugging utilities](#debugging-uti
 
 ## Requirements
 
- * Go 1.24 or newer
+ * Go 1.27.4 or newer
  * A Wifi interface that can connect to the car
 
 On a Raspberry Pi, skip this and follow the [Quick start](#quick-start-raspberry-pi-step-by-step) below.
@@ -124,23 +124,31 @@ Find the Pi's IP address in your router (or try `ping phev.local`), then log in 
 ssh <your_username>@phev.local
 ```
 
-Update everything and install the tools needed to build the program:
+Update everything and install git:
 
 ```bash
 sudo apt update
 sudo apt full-upgrade -y
-sudo apt install -y git golang-go
+sudo apt install -y git
 ```
 
-Check that Go is version 1.24 or newer:
+phev2mqtt needs Go 1.27.4 or newer. The `golang-go` package from `apt` is too old, so
+install Go from [go.dev/dl](https://go.dev/dl/). Check your CPU type with `uname -m`
+(`aarch64` means the `linux-arm64` download, `armv7l` means `linux-armv6l`):
 
 ```bash
+# Replace the file name with the current version for your CPU from https://go.dev/dl/
+wget https://go.dev/dl/go1.27.4.linux-arm64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.27.4.linux-arm64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+source ~/.profile
 go version
 ```
 
-You should see something like `go version go1.24.4 linux/arm64`. If it shows an older
-version, see [Older Raspberry Pi OS versions](#older-raspberry-pi-os-versions) for how to
-install a newer Go.
+You should see something like `go version go1.27.4 linux/arm64`. If you previously
+installed `golang-go` with `apt`, remove it (`sudo apt remove golang-go`) so the old
+version isn't used by mistake.
 
 ### Step 3: Download and build phev2mqtt
 
@@ -336,7 +344,7 @@ have a Pi. These are the general steps for any Linux machine with a Wifi interfa
 
 #### Install Go
 
- * Download and install the latest [Go compiler](https://golang.org/dl/) (Go 1.24 or newer is required)
+ * Download and install the latest [Go compiler](https://golang.org/dl/) (Go 1.27.4 or newer is required)
    * Your distro packager may have a version thats too old
    * For raspbian choose the ARMv6 release
 
@@ -525,20 +533,8 @@ Raspberry Pi OS (Debian 13 "trixie"). Use the notes below only if you run an old
 
 ### Bookworm (Debian 12)
 
-Bookworm also uses NetworkManager, so the Quick start steps work, except that the
-`golang-go` package is too old (Go 1.24 or newer is required). Install Go from
-[go.dev/dl](https://go.dev/dl/) instead of `apt`. Check your CPU type with `uname -m`
-(`aarch64` means the `linux-arm64` download, `armv7l` means `linux-armv6l`):
-
-```bash
-# Replace the file name with the current version for your CPU from https://go.dev/dl/
-wget https://go.dev/dl/go1.24.4.linux-arm64.tar.gz
-sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.24.4.linux-arm64.tar.gz
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
-source ~/.profile
-go version
-```
+Bookworm also uses NetworkManager, and the Quick start already installs Go from go.dev,
+so the Quick start steps work unchanged.
 
 <details>
 <summary>Bullseye and older (dhcpcd + wpa_supplicant)</summary>

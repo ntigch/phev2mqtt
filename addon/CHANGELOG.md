@@ -1,3 +1,7 @@
+# Version 1.7
+* Security update: built with Go 1.27.4; fixed GO-2026-6278 (gorilla/websocket); updated dependencies (golang.org/x/net, x/sys, x/text, x/sync, paho.mqtt, fsnotify, go-toml, mapstructure, pflag, yaml)
+* Building from source now requires Go 1.27.4+ (the Debian/Raspberry Pi OS `golang-go` package is too old)
+
 # Version 1.6
 * Removed the vehicle emulator (`phev2mqtt emulator`)
 * Fixed Home Assistant discovery: the climate select and charge timer switch now read the topics phev2mqtt actually publishes
