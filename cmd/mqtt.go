@@ -968,6 +968,7 @@ func discoveryConfigs(discoveryPrefix, vin, topic, name string) map[string]strin
 				"state_topic": "~/climate/state",
 				"command_topic": "~/set/climate/mode",
 				"options": [ "off", "heat", "cool", "windscreen"],
+				"value_template": "{{ value if value in ['off', 'heat', 'cool', 'windscreen'] else 'off' }}",
 				"avty_t": "~/available",
 				"unique_id": "__VIN___climate_on",
 		"dev": {
@@ -978,6 +979,19 @@ func discoveryConfigs(discoveryPrefix, vin, topic, name string) map[string]strin
 		},
 				"icon": "mdi:car-seat-heater",
 				"~": "__TOPIC__"}`,
+		"%s/sensor/%s_climate_status/config": `{
+		"name": "__NAME__ climate status",
+		"icon": "mdi:car-seat-heater",
+		"state_topic": "~/climate/state",
+		"avty_t": "~/available",
+		"unique_id": "__VIN___climate_status",
+		"dev": {
+			"name": "PHEV __VIN__",
+			"identifiers": ["phev-__VIN__"],
+			"manufacturer": "Mitsubishi",
+			"model": "Outlander PHEV"
+		},
+		"~": "__TOPIC__"}`,
 		"%s/select/%s_climate_duration/config": `{
 		"name": "__NAME__ climate duration",
 		"icon": "mdi:timer-outline",

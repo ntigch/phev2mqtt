@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,20 @@ func TestDiscoveryTopicsExist(t *testing.T) {
 		if err := json.Unmarshal([]byte(payload), &cfg); err != nil {
 			t.Errorf("%s: invalid JSON: %v", topic, err)
 			continue
+		}
+		// A select's state must be one of its options, or Home Assistant
+		// rejects it. A state topic that can carry other values (like
+		// /climate/state) needs a value_template mapping them to an option.
+		if opts, ok := cfg["options"].([]interface{}); ok && cfg["state_topic"] == "~/climate/state" {
+			tmpl, _ := cfg["value_template"].(string)
+			if tmpl == "" {
+				t.Errorf("%s: select on ~/climate/state needs a value_template", topic)
+			}
+			for _, o := range opts {
+				if !strings.Contains(tmpl, fmt.Sprintf("'%v'", o)) {
+					t.Errorf("%s: value_template does not cover option %v", topic, o)
+				}
+			}
 		}
 		if cfg["~"] != prefix {
 			t.Errorf("%s: ~ = %v, want %q", topic, cfg["~"], prefix)

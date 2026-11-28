@@ -1,3 +1,7 @@
+# Version 1.9
+* Fixed Home Assistant "Invalid option ... 'unknown'" warnings: the climate state select now shows *off* when the car reports *terminated* or *unknown*
+* New read-only "climate status" sensor with the full climate state, including *terminated* and *unknown*
+
 # Version 1.8
 * New Home Assistant select "climate duration" (10, 20 or 30 minutes): the Heat, Cool and Windscreen switches and the climate state select now run for the chosen time instead of always 30 minutes. The choice is kept across restarts.
 

@@ -493,6 +493,10 @@ are published again when Home Assistant or the MQTT broker restarts. You can
 search for "phev" in your entity list. Your car should also appear as a device
 in the Devices tab.
 
+The "climate state" select only knows *off*, *heat*, *cool* and *windscreen*, so it shows
+*off* when the car reports *terminated* or *unknown*. The read-only "climate status" sensor
+shows the full state, including *terminated* and *unknown*.
+
 You can disable this with `--ha_discovery=false` or change the discovery prefix, the default is `--ha_discovery_prefix=homeassistant`.
 
 
