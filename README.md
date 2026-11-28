@@ -189,21 +189,24 @@ systemctl is-active NetworkManager
 ```
 
 This should print `active`. Now run the helper script with the car's Wifi name, its
-password and the MAC address from step 4. Keep the quotes around the password:
+password, the MAC address from step 4, the Wifi interface (`wlan0` on a Pi) and your
+two-letter country code (for example `AU`, `GB` or `NL`). Keep the quotes around the password:
 
 ```bash
 cd ~/phev2mqtt
-sudo scripts/setup-car-wifi-nm.sh '<car_ssid>' '<car_password>' <mac_address>
+sudo scripts/setup-car-wifi-nm.sh '<car_ssid>' '<car_password>' <mac_address> wlan0 <country>
 ```
 
-For example `sudo scripts/setup-car-wifi-nm.sh 'REMOTE45abcd' 'mypassword123' 02:11:22:33:44:55`.
+For example `sudo scripts/setup-car-wifi-nm.sh 'REMOTE45abcd' 'mypassword123' 02:11:22:33:44:55 wlan0 AU`.
+
+Raspberry Pi OS keeps Wifi switched off until a Wifi country is set. If you didn't enter
+Wifi details in Imager, none is set, so the script sets it for you. You can leave out
+`wlan0 <country>` if a country is already set.
 
 The script creates a NetworkManager connection with the settings the car's old Wifi needs,
-and it restarts NetworkManager. Wait a few seconds, then connect:
-
-```bash
-sudo nmcli connection up '<car_ssid>'
-```
+restarts NetworkManager and connects to the car. The car's Wifi never becomes the Pi's
+default route, so the Pi keeps reaching your home network and MQTT broker over Ethernet.
+To reconnect later by hand, run `sudo nmcli connection up '<car_ssid>'`.
 
 Check that it worked. The Pi should have the address `192.168.8.47`, and the car should answer:
 
@@ -306,6 +309,7 @@ for details.
 | Problem | What to try |
 |---|---|
 | `ping 192.168.8.46` fails | Is the car on and in range? Run `sudo nmcli connection up '<car_ssid>'`, then check `ip addr show wlan0` shows `192.168.8.47`. Check `sudo journalctl -u NetworkManager -n 50` for errors. |
+| `No suitable device found for this connection (device eth0 not available … mismatching interface name)` | The message names eth0, but the real problem is that wlan0 can't be used. Usually no Wifi country is set: run the step 5 script again with your country code at the end (or `sudo raspi-config nonint do_wifi_country AU`). Also try `sudo rfkill unblock wifi` and `sudo nmcli radio wifi on`, and check `nmcli device` shows `wlan0` as `wifi` and not `unavailable`. If your Wifi interface has another name, pass it as the 4th argument. |
 | `ASSOC-REJECT` in the logs | Run the step 5 script again; it sets the plain WPA2 settings the car needs. |
 | `client register` fails | Put the car in registration mode again and run it straight away. Make sure `ip link show wlan0` shows the MAC address from step 4 (after `link/ether`). |
 | `client watch` shows nothing | Disconnect the phone app from the car's Wifi. |
