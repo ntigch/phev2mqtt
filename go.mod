@@ -17,7 +17,8 @@ require (
 	github.com/d4l3k/messagediff v1.2.1 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	// Untagged commit from main: fixes GO-2026-6278 (no release yet). Return to a tag once v1.5.4 is out.
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
