@@ -121,7 +121,7 @@ If you stay on an SD card, use a good brand (a high-endurance card for dashcams 
 Find the Pi's IP address in your router (or try `ping phev.local`), then log in from your computer:
 
 ```bash
-ssh <your_username>@<pi-IP-address>
+ssh <your_username>@<your pi's-IP-address>
 ```
 
 Update everything and install git:
@@ -134,7 +134,7 @@ sudo apt install -y git
 
 phev2mqtt needs Go 1.27.4 or newer. The `golang-go` package from `apt` is too old, so
 install Go from [go.dev/dl](https://go.dev/dl/). Check your CPU type with `uname -m`
-(`aarch64` means the `linux-arm64` download, `armv7l` means `linux-armv6l`):
+(`aarch64` means the `linux-arm64` download, `armv7l` means `linux-armv6l`). On Raspberry Pi OS you need the linux-arm64 version and can copy the command below:
 
 ```bash
 # Replace the file name with the current version for your CPU from https://go.dev/dl/
@@ -158,6 +158,7 @@ git clone https://github.com/ntigch/phev2mqtt.git
 cd phev2mqtt
 go build
 sudo install -m 755 phev2mqtt /usr/local/bin/phev2mqtt
+cd
 ```
 
 The build takes a minute or two on a Pi and prints nothing when it works. Check:
@@ -173,10 +174,10 @@ You should see the help text.
 The car only talks to Wifi devices it has been introduced to, identified by their **MAC
 address**. You need to pick the MAC address the Pi will use on the car's Wifi:
 
- * **Easiest:** make one up, in the form `02:xx:xx:xx:xx:xx` (using hex digits `0-9` and
+ * **Easiest if you've never connected to the car before:** make one up, in the form `02:xx:xx:xx:xx:xx` (using hex digits `0-9` and
    `a-f`), e.g. `02:11:22:33:44:55`. Pick something unique and write it down. You will
    register it with the car in step 6.
- * Or reuse the MAC address of the phone that already works with the Mitsubishi app. (Then
+ * Or reuse the MAC address of the phone that already works with the Mitsubishi app. If you have registered one or two phones before you need to reuse the MAC address of either of those because the car will not allow for extra MAC addresses to be registered (When reusing a phone MAC address
    you can skip the registration in step 6.)
 
 ### Step 5: Connect the Pi's Wifi to the car
